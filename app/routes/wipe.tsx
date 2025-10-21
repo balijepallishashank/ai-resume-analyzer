@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { usePuterStore } from "~/lib/puter";
+import { usePuterStore } from "../lib/puter";
 import { useNavigate } from "react-router-dom";
 
 const Wipe = () => {
@@ -10,8 +10,13 @@ const Wipe = () => {
         const wipeData = async () => {
             try {
                 const keys = await kv.list();
-                for (const key of keys) {
-                    await kv.delete(key.name);
+                // This check is necessary because kv.list() can return undefined
+                if (keys) {
+                    for (const key of keys) {
+                        // The key object can be a string or an object with a name property
+                        const keyName = typeof key === 'string' ? key : key.name;
+                        await kv.delete(keyName);
+                    }
                 }
                 alert("All data has been wiped!");
             } catch (error) {

@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+
+import {Link} from "react-router";
 import ScoreCircle from "~/components/ScoreCircle";
-import { useEffect, useState } from "react";
-import { usePuterStore } from "~/lib/puter";
+import {useEffect, useState} from "react";
+import {usePuterStore} from "~/lib/puter";
 
 const ResumeCard = ({ resume: { id, companyName, jobTitle, feedback, imagePath } }: { resume: Resume }) => {
     const { fs } = usePuterStore();
@@ -9,23 +10,13 @@ const ResumeCard = ({ resume: { id, companyName, jobTitle, feedback, imagePath }
 
     useEffect(() => {
         const loadResume = async () => {
-            try {
-                const blob = await fs.read(imagePath);
-                if (!blob) return;
-                const url = URL.createObjectURL(blob);
-                setResumeUrl(url);
-            } catch (error) {
-                console.error("Failed to load resume image:", error);
-            }
-        };
+            const blob = await fs.read(imagePath);
+            if(!blob) return;
+            let url = URL.createObjectURL(blob);
+            setResumeUrl(url);
+        }
 
-        void loadResume();
-
-        return () => {
-            if (resumeUrl) {
-                URL.revokeObjectURL(resumeUrl);
-            }
-        };
+        loadResume();
     }, [imagePath]);
 
     return (
@@ -54,4 +45,4 @@ const ResumeCard = ({ resume: { id, companyName, jobTitle, feedback, imagePath }
         </Link>
     )
 }
-export default ResumeCard;
+export default ResumeCard

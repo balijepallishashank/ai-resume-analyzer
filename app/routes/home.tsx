@@ -1,10 +1,18 @@
-
 import type { Route } from "./+types/home";
 import Navbar from "~/components/Navbar";
 import ResumeCard from "~/components/ResumeCard";
-import {usePuterStore} from "~/lib/puter";
-import {Link, useNavigate} from "react-router";
-import {useEffect, useState} from "react";
+import { usePuterStore } from "~/lib/puter";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+
+// Placeholder type for Resume, including 'feedback'
+type Resume = {
+    id: string;
+    companyName: string;
+    jobTitle: string;
+    imagePath: string;
+    feedback: any;
+};
 
 export function meta({}: Route.MetaArgs) {
     return [
@@ -20,41 +28,63 @@ export default function Home() {
     const [loadingResumes, setLoadingResumes] = useState(false);
 
     useEffect(() => {
-        if(!auth.isAuthenticated) navigate('/auth?next=/');
-    }, [auth.isAuthenticated])
+        if (!auth.isAuthenticated) {
+            navigate('/auth?next=/');
+            return;
+        }
 
-    useEffect(() => {
         const loadResumes = async () => {
             setLoadingResumes(true);
 
-            const resumes = (await kv.list('resume:*', true)) as KVItem[];
+            const resumeKeys = (await kv.list('resume:*')) as string[];
 
-            const parsedResumes = resumes?.map((resume) => (
-                JSON.parse(resume.value) as Resume
-            ))
+            if (!resumeKeys || resumeKeys.length === 0) {
+                setResumes([]);
+                setLoadingResumes(false);
+                return;
+            }
 
-            setResumes(parsedResumes || []);
+            const resumePromises = resumeKeys.map(async (key) => {
+                const value = await kv.get(key);
+
+                // **FIX: Check if value is a string before parsing**
+                // This resolves the TS2345 error.
+                if (typeof value === 'string') {
+                    try {
+                        return JSON.parse(value) as Resume;
+                    } catch (e) {
+                        console.error("Failed to parse resume data:", value, e);
+                        return null; // Handle bad JSON
+                    }
+                }
+                return null; // Handle null or undefined values
+            });
+
+            const parsedResumes = await Promise.all(resumePromises);
+
+            // **FIX: Filter out any null entries that failed to fetch or parse**
+            setResumes(parsedResumes.filter(resume => resume !== null) as Resume[]);
             setLoadingResumes(false);
-        }
+        };
 
-        loadResumes()
-    }, []);
+        void loadResumes();
+    }, [auth.isAuthenticated, navigate, kv]);
 
-    return <main className="bg-[url('/images/bg-main.svg')] bg-cover">
+    return <main className="bg-[url('/images/bg-main.svg')] bg-cover min-h-screen">
         <Navbar />
 
         <section className="main-section">
             <div className="page-heading py-16">
                 <h1>Track Your Applications & Resume Ratings</h1>
-                {!loadingResumes && resumes?.length === 0 ? (
+                {!loadingResumes && resumes.length === 0 ? (
                     <h2>No resumes found. Upload your first resume to get feedback.</h2>
-                ): (
+                ) : (
                     <h2>Review your submissions and check AI-powered feedback.</h2>
                 )}
             </div>
             {loadingResumes && (
                 <div className="flex flex-col items-center justify-center">
-                    <img src="/images/resume-scan-2.gif" className="w-[200px]" />
+                    <img src="/images/resume-scan-2.gif" className="w-[200px]" alt="Loading resumes..." />
                 </div>
             )}
 
@@ -66,7 +96,7 @@ export default function Home() {
                 </div>
             )}
 
-            {!loadingResumes && resumes?.length === 0 && (
+            {!loadingResumes && resumes.length === 0 && (
                 <div className="flex flex-col items-center justify-center mt-10 gap-4">
                     <Link to="/upload" className="primary-button w-fit text-xl font-semibold">
                         Upload Resume
