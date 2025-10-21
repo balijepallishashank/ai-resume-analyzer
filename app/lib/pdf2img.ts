@@ -1,4 +1,3 @@
-
 export interface PdfConversionResult {
     imageUrl: string;
     file: File | null;
@@ -14,10 +13,16 @@ async function loadPdfJs(): Promise<any> {
     if (loadPromise) return loadPromise;
 
     isLoading = true;
-    // @ts-expect-error - pdfjs-dist/build/pdf.mjs is not a module
+
+    // We still have to tell TypeScript to ignore this module import
+    // @ts-ignore
     loadPromise = import("pdfjs-dist/build/pdf.mjs").then((lib) => {
-        // Set the worker source to use local file
-        lib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        // FIX 1: Use new URL() to let Vite bundle the worker automatically
+        lib.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/build/pdf.worker.min.mjs',
+            import.meta.url
+        ).toString();
+
         pdfjsLib = lib;
         isLoading = false;
         return lib;
@@ -36,7 +41,8 @@ export async function convertPdfToImage(
         const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(1);
 
-        const viewport = page.getViewport({ scale: 4 });
+        // FIX 2: Changed scale from 4 to 1.5 for better performance
+        const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
 
@@ -54,7 +60,6 @@ export async function convertPdfToImage(
             canvas.toBlob(
                 (blob) => {
                     if (blob) {
-                        // Create a File from the blob with the same name as the pdf
                         const originalName = file.name.replace(/\.pdf$/i, "");
                         const imageFile = new File([blob], `${originalName}.png`, {
                             type: "image/png",
@@ -74,13 +79,16 @@ export async function convertPdfToImage(
                 },
                 "image/png",
                 1.0
-            ); // Set quality to maximum (1.0)
+            );
         });
     } catch (err) {
+        // FIX 3: Improved error logging for better debugging
+        const errorMessage = (err instanceof Error) ? err.message : String(err);
+        console.error("Failed to convert PDF:", errorMessage);
         return {
             imageUrl: "",
             file: null,
-            error: `Failed to convert PDF: ${err}`,
+            error: `Failed to convert PDF: ${errorMessage}`,
         };
     }
 }
